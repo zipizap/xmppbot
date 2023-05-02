@@ -1,0 +1,14 @@
+server: xmpp.jp
+user: 'myuser@xmpp.jp'
+password: 'mypass'
+
+# Whitelist of allowed contacts (regexp)
+contacts:
+  - '.+'
+# - batman@xmpp.jp.*
+
+rules:
+- regexp: "^echo.*"
+  binaryFilepath: "./echo.sh"
+- regexp: "^date$"
+  binaryFilepath: "./date.sh"
