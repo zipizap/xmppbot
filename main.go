@@ -42,6 +42,7 @@ func main() {
 	}
 
 	logrus.Info("Listening for messages")
+	handlerCounter := 1
 	for {
 		message, err := client.Recv()
 		if err != nil {
@@ -57,7 +58,8 @@ func main() {
 			if !contains(config.Contacts, v.Remote) {
 				continue
 			}
-			go handleMessage(v.Text, v.Remote, config.Rules, client)
+			go handleMessage(v.Text, v.Remote, config.Rules, client, handlerCounter)
+			handlerCounter += 1
 		case xmpp.Presence:
 			continue
 		default:
@@ -67,8 +69,8 @@ func main() {
 	}
 }
 
-func handleMessage(message string, fromContact string, rules []Rule, client *xmpp.Client) {
-	logrus.Infof("Received message from '%s':\n%s\n", fromContact, ident(message, "<--- "))
+func handleMessage(message string, fromContact string, rules []Rule, client *xmpp.Client, handlerCounter int) {
+	logrus.Infof("[%d] Received message from '%s':\n%s\n", handlerCounter, fromContact, ident(message, "<--- "))
 	for _, rule := range rules {
 		matched, err := regexp.MatchString(rule.Regexp, message)
 		if err != nil {
@@ -77,6 +79,10 @@ func handleMessage(message string, fromContact string, rules []Rule, client *xmp
 		}
 
 		if matched {
+			reply := fmt.Sprintf("[%d] Processing command: '%s'\n", handlerCounter, message)
+			client.Send(xmpp.Chat{Type: "chat", Text: reply, Remote: fromContact})
+			logrus.Infof("[%d] Sent reply:\n%s\n", handlerCounter, ident(reply, "---> "))
+
 			cmd := exec.Command(rule.BinaryFilepath, message)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
@@ -85,10 +91,10 @@ func handleMessage(message string, fromContact string, rules []Rule, client *xmp
 			}
 
 			exitCode := cmd.ProcessState.ExitCode()
-			reply := fmt.Sprintf("%s\n---[Exit-code: %d]-------------\n", output, exitCode)
+			reply = fmt.Sprintf("%s\n[%d]---[Exit-code: %d]-------------\n", output, handlerCounter, exitCode)
 			//client.Send(xmpp.Chat{Type: "chat", Text: reply})
 			client.Send(xmpp.Chat{Type: "chat", Text: reply, Remote: fromContact})
-			logrus.Infof("Sent reply:\n%s\n", ident(reply, "---> "))
+			logrus.Infof("[%d] Sent reply:\n%s\n", handlerCounter, ident(reply, "---> "))
 			break
 		}
 	}
